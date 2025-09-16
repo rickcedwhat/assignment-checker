@@ -62,23 +62,8 @@ Replace "your-google-client-id-goes-here" with the Client ID you got from the Go
 Replace "your-google-ai-studio-api-key" with your Gemini API key.
 
 5. Running the Application
+Activate: venv\Scripts\activate
+
 Start the local development server:
 
 uvicorn main:app --reload
-
-The API will be available at http://127.0.0.1:8000. You can access the interactive documentation at http://127.0.0.1:8000/docs.
-
-Note: To test the protected endpoints in the docs, you'll need to get a valid ID token from a frontend application and paste it into the authorization modal.
-
-Deployment to Railway
-Prepare Your Project: Commit your updated main.py and requirements.txt to GitHub.
-
-Configure Railway: In your Railway project, go to the "Variables" tab.
-
-Remove the old SERVICE_API_KEY variable if it exists.
-
-Add GOOGLE_CLIENT_ID and paste your client ID.
-
-Ensure GOOGLE_API_KEY is set correctly.
-
-Update OAuth Origins: In your Google Cloud Console Credentials page, add your Railway app's public URL (e.g., https://your-app-name.up.railway.app) to the list of Authorized JavaScript origins. This is crucial for it to work once deployed.

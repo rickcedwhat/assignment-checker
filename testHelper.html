@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Helper v20</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css" />
+    <style>
+        .drop-zone { border: 2px dashed #ccc; }
+        .spinner { display: none; }
+        .preview-img { max-height: 80px; border-radius: 4px; border: 1px solid #ddd; cursor: pointer; }
+        .staged-img-container { position: relative; display: inline-block; }
+        .staged-img-actions { position: absolute; bottom: 5px; left: 5px; right: 5px; display: flex; gap: 4px; background: rgba(0,0,0,0.6); padding: 4px; border-radius: 4px; opacity: 0; visibility: hidden; transition: opacity 0.2s ease, visibility 0.2s ease; }
+        .staged-img-container:hover .staged-img-actions { opacity: 1; visibility: visible; }
+        .delete-btn { position: absolute; top: -8px; right: -8px; background: #dc2626; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-weight: bold; cursor: pointer; border: 2px solid white; opacity: 0; visibility: hidden; transition: all 0.2s ease; }
+        .staged-img-container:hover .delete-btn { opacity: 1; visibility: visible; }
+        #cropModal, #manageImageModal { display: none; }
+        #cropImageWrapper { width: 80vw; height: 75vh; position: relative; background-color: #f3f4f6; }
+        .crop-image-container img { max-width: 100%; max-height: 100%; }
+        #toast { position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%); padding: 12px 24px; background-color: #22c55e; color: white; border-radius: 8px; font-weight: 500; box-shadow: 0 4px 15px rgba(0,0,0,0.2); transition: bottom 0.5s ease-in-out; z-index: 100; }
+        #toast.show { bottom: 30px; }
+        body.is-dragging-over::after { content: 'Drop Anywhere to Upload'; position: fixed; inset: 0; background: rgba(59, 130, 246, 0.7); color: white; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; font-weight: bold; z-index: 9999; pointer-events: none; }
+        #assignActionDropdown { display: none; }
+        .cropper-point { width: 20px; height: 20px; opacity: 0.75; background-color: #3b82f6; border-radius: 50%; }
+        .cropper-point.point-e, .cropper-point.point-w { margin-left: -10px; }
+        .cropper-point.point-n, .cropper-point.point-s { margin-top: -10px; }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+<div class="container mx-auto p-4 md:p-8 max-w-6xl">
+    <header class="text-center mb-8"><h1 class="text-4xl font-bold text-gray-900">Test Helper</h1><p class="text-lg text-gray-600 mt-2">Paste, drop, or upload question images below.</p></header>
+    <main class="bg-white p-6 rounded-lg shadow-lg">
+        <div class="drop-zone p-4 border rounded-md mb-6 bg-gray-50 min-h-[150px]">
+            <div class="flex justify-between items-center border-b pb-2 mb-4 flex-wrap gap-4">
+                <h2 class="text-2xl font-semibold">Pasted Images</h2>
+                <div class="flex items-center gap-4">
+                    <button id="uploadBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-md">Upload from Library</button>
+                    <input type="file" id="mobileUpload" multiple accept="image/*" class="hidden">
+                    <div class="flex items-center gap-2">
+                        <label for="currentProblemNum" class="text-sm font-medium text-gray-700">Current #:</label>
+                        <input type="number" id="currentProblemNum" value="1" class="p-2 border rounded-md w-20 text-center font-bold">
+                        <label for="currentProblemPart" class="text-sm font-medium text-gray-700">Part:</label>
+                        <input type="text" id="currentProblemPart" placeholder="(opt)" class="p-2 border rounded-md w-16 text-center font-bold">
+                    </div>
+                </div>
+            </div>
+            <div id="staging-area" class="flex flex-wrap gap-4 items-start"><p id="staging-placeholder" class="text-gray-500">Paste, drop, or upload images to begin...</p></div>
+        </div>
+        <h2 class="text-2xl font-semibold border-b pb-2 mb-4">Problems</h2>
+        <table id="problemsTable" class="w-full"><thead class="bg-gray-100"><tr><th class="p-3 text-left text-sm font-semibold text-gray-600 w-1/12">Problem #</th><th class="p-3 text-left text-sm font-semibold text-gray-600 w-5/12">Images</th><th class="p-3 text-left text-sm font-semibold text-gray-600 w-2/12">Action</th><th class="p-3 text-left text-sm font-semibold text-gray-600 w-2/12">Gemini Response</th><th class="p-3 text-left text-sm font-semibold text-gray-600 w-2/12">Final Answer</th></tr></thead><tbody id="problemsTableBody" class="divide-y divide-gray-200"></tbody></table>
+    </main>
+</div>
+<div id="cropModal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4">
+    <div class="bg-white p-6 rounded-lg shadow-xl flex flex-col w-full max-w-6xl">
+        <h3 class="text-xl font-bold mb-4">Crop & Assign Image</h3>
+        <div id="cropImageWrapper" class="mb-4"><img id="imageToCrop"></div>
+        <div class="flex items-center gap-4 flex-wrap">
+            <button id="togglePanBtn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 rounded-md text-sm">Toggle Pan</button>
+            <div class="flex items-center gap-2 flex-grow mx-2"><input type="range" id="rotationSlider" min="-180" max="180" value="0" class="w-full"><span id="rotationValue" class="text-sm font-mono w-12 text-center bg-gray-100 p-1 rounded">0°</span></div>
+            <div class="flex items-center gap-2 flex-grow mx-2"><span class="text-sm font-medium">Zoom:</span><input type="range" id="zoomSlider" min="0.1" max="4" step="0.05" class="w-full"><span id="zoomValue" class="text-sm font-mono w-16 text-center bg-gray-100 p-1 rounded">100%</span></div>
+            <div class="flex-grow"></div>
+            <div class="relative inline-flex shadow-sm rounded-md">
+                <button type="button" id="mainAssignBtn" class="relative inline-flex items-center px-4 py-2 rounded-l-md border border-gray-300 bg-blue-600 text-white hover:bg-blue-700 font-bold disabled:opacity-50 disabled:cursor-not-allowed"></button>
+                <div class="relative -ml-px block">
+                    <button type="button" id="assignActionToggle" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed">
+                        <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                    </button>
+                    <div id="assignActionDropdown" class="origin-top-right absolute right-0 bottom-12 mb-2 w-max rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5">
+                        <div class="py-1" role="menu">
+                            <a href="#" class="text-gray-700 block px-4 py-2 text-sm hover:bg-gray-100" data-action="number"></a>
+                            <a href="#" class="text-gray-700 block px-4 py-2 text-sm hover:bg-gray-100" data-action="part"></a>
+                            <a href="#" class="text-gray-700 block px-4 py-2 text-sm hover:bg-gray-100" data-action="none"></a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <button onclick="closeCropperModal()" class="bg-gray-300 hover:bg-gray-400 text-black py-2 px-4 rounded-md">Close</button>
+        </div>
+    </div>
+</div>
+<div id="manageImageModal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4">
+    <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg">
+        <h3 class="text-xl font-bold mb-4">Manage Image</h3>
+        <div class="mb-4 bg-gray-100 p-2 rounded flex justify-center"><img id="imageToManage" class="max-w-full max-h-64"></div>
+        <div class="flex items-center gap-4"><input type="text" id="reassignProblemNumber" placeholder="New Problem #" class="p-2 border rounded-md w-full"><button id="reassignBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md">Reassign</button></div>
+        <hr class="my-4">
+        <div class="flex items-center justify-between">
+            <p class="text-sm text-gray-600">Or, permanently delete this image:</p>
+            <div>
+                <button id="deleteImageBtn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md">Delete</button>
+                <button id="cancelManageBtn" class="bg-gray-300 hover:bg-gray-400 text-black py-2 px-4 rounded-md">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+<div id="toast"></div>
+
+<script>
+    const API_BASE_URL = 'http://127.0.0.1:8000';
+    let problems = {};
+    let unassignedImages = [];
+    let cropper;
+    let managedImageInfo = null;
+    let currentAssignAction = 'number';
+
+    // --- DOM Elements ---
+    const uploadBtn = document.getElementById('uploadBtn');
+    const mobileUploadInput = document.getElementById('mobileUpload');
+    const currentProblemNumInput = document.getElementById('currentProblemNum');
+    const currentProblemPartInput = document.getElementById('currentProblemPart');
+    const mainAssignBtn = document.getElementById('mainAssignBtn');
+    const assignActionToggle = document.getElementById('assignActionToggle');
+    const assignActionDropdown = document.getElementById('assignActionDropdown');
+    const togglePanBtn = document.getElementById('togglePanBtn');
+    const manageImageModal = document.getElementById('manageImageModal');
+    const imageToManage = document.getElementById('imageToManage');
+    const reassignProblemNumberInput = document.getElementById('reassignProblemNumber');
+    const reassignBtn = document.getElementById('reassignBtn');
+    const deleteImageBtn = document.getElementById('deleteImageBtn');
+    const cancelManageBtn = document.getElementById('cancelManageBtn');
+    const toast = document.getElementById('toast');
+    const imageToCrop = document.getElementById('imageToCrop');
+    const cropImageWrapper = document.getElementById('cropImageWrapper');
+    const stagingArea = document.getElementById('staging-area');
+    const stagingPlaceholder = document.getElementById('staging-placeholder');
+    const problemsTableBody = document.getElementById('problemsTableBody');
+    const cropModal = document.getElementById('cropModal');
+    const rotationSlider = document.getElementById('rotationSlider');
+    const rotationValue = document.getElementById('rotationValue');
+    const zoomSlider = document.getElementById('zoomSlider');
+    const zoomValue = document.getElementById('zoomValue');
+
+    // --- Event Listeners ---
+    uploadBtn.addEventListener('click', () => mobileUploadInput.click());
+    mobileUploadInput.addEventListener('change', e => handleFiles(e.target.files));
+    // ... other listeners ...
+    mainAssignBtn.addEventListener('click', () => handleAssignment(currentAssignAction));
+    assignActionToggle.addEventListener('click', () => { assignActionDropdown.style.display = assignActionDropdown.style.display === 'block' ? 'none' : 'block'; });
+    assignActionDropdown.addEventListener('click', e => { e.preventDefault(); const target = e.target.closest('a'); if (target) { currentAssignAction = target.dataset.action; updateAssignButtonLabels(); assignActionDropdown.style.display = 'none'; } });
+    currentProblemNumInput.addEventListener('input', updateAssignButtonLabels);
+    currentProblemPartInput.addEventListener('input', updateAssignButtonLabels);
+    togglePanBtn.addEventListener('click', () => { if (cropper) { const newMode = cropper.getDragMode() === 'move' ? 'crop' : 'move'; cropper.setDragMode(newMode); } });
+    window.addEventListener('paste', e => handleFiles(e.clipboardData.files));
+    window.addEventListener('dragover', e => { e.preventDefault(); document.body.classList.add('is-dragging-over'); });
+    window.addEventListener('dragleave', () => { document.body.classList.remove('is-dragging-over'); });
+    window.addEventListener('drop', e => { e.preventDefault(); document.body.classList.remove('is-dragging-over'); handleFiles(e.dataTransfer.files); });
+    rotationSlider.addEventListener('input', e => { if (cropper) { const degrees = parseInt(e.target.value, 10); cropper.rotateTo(degrees); rotationValue.textContent = `${degrees}°`; } });
+    zoomSlider.addEventListener('input', e => { if (cropper) { cropper.zoomTo(parseFloat(e.target.value)); } });
+    
+    // --- All other JavaScript functions are unchanged (condensed for brevity) ---
+    function getProblemState(actionType) { const num = currentProblemNumInput.value.trim(); let part = currentProblemPartInput.value.trim().toLowerCase(); let assignToPart = part; if (actionType === 'part' && !part) { assignToPart = 'a'; } const assignToStr = assignToPart ? `${num}${assignToPart}` : num; return { num, part: assignToPart, str: assignToStr }; }
+    function getNextPart(part) { if (!part) return 'a'; if (part.length === 1 && part >= 'a' && part < 'z') return String.fromCharCode(part.charCodeAt(0) + 1); return part; }
+    function getNextNum(num) { return (parseInt(num, 10) + 1).toString(); }
+    function updateAssignButtonLabels() { const { num, str } = getProblemState('none'); const assignToPartState = getProblemState('part'); const labels = { 'none': `Assign ${str}`, 'part': `Assign ${assignToPartState.str} → ${num}${getNextPart(assignToPartState.part)}`, 'number': `Assign ${str} → ${getNextNum(num)}` }; mainAssignBtn.textContent = labels[currentAssignAction]; assignActionDropdown.querySelector('[data-action="none"]').textContent = labels['none']; assignActionDropdown.querySelector('[data-action="part"]').textContent = labels['part']; assignActionDropdown.querySelector('[data-action="number"]').textContent = labels['number']; }
+    function setAssignButtonsDisabled(isDisabled) { mainAssignBtn.disabled = isDisabled; assignActionToggle.disabled = isDisabled; }
+    async function handleAssignment(actionType) { setAssignButtonsDisabled(true); const { str: problemStr } = getProblemState(actionType); if (!problemStr) { alert('Please enter a problem number.'); setAssignButtonsDisabled(false); return; } const canvas = cropper.getCroppedCanvas({ imageSmoothingQuality: 'high' }); const croppedDataUrl = canvas.toDataURL('image/png'); const blob = await (await fetch(croppedDataUrl)).blob(); const file = new File([blob], `cropped_${Date.now()}.png`, { type: 'image/png' }); addImageToProblem(problemStr, file, croppedDataUrl); renderTable(); showToast(`Assigned crop to Problem #${problemStr}`); if (actionType === 'number') { currentProblemNumInput.value = getNextNum(currentProblemNumInput.value); currentProblemPartInput.value = ''; } else if (actionType === 'part') { const currentPart = getProblemState('part').part; currentProblemPartInput.value = getNextPart(currentPart); } updateAssignButtonLabels(); }
+    function renderStagingArea() { stagingPlaceholder.style.display = unassignedImages.length > 0 ? 'none' : 'block'; stagingArea.innerHTML = ''; unassignedImages.forEach(img => { const container = document.createElement('div'); container.className = 'staged-img-container'; container.innerHTML = `<img src="${img.dataUrl}" class="rounded-md border-2 border-gray-300" style="max-height: 150px;"><div class="staged-img-actions"><button class="assign-full-none bg-blue-500 hover:bg-blue-600 text-white text-xs px-2 py-1 rounded-sm flex-grow" data-id="${img.id}">Assign</button><button class="crop-btn bg-purple-500 hover:bg-purple-600 text-white text-xs px-2 py-1 rounded-sm" data-id="${img.id}">Crop</button></div><div class="delete-btn" data-id="${img.id}">&times;</div>`; stagingArea.appendChild(container); }); }
+    stagingArea.addEventListener('click', e => { const target = e.target; const stagedImageId = parseFloat(target.dataset.id); if (target.classList.contains('delete-btn')) { unassignedImages = unassignedImages.filter(img => img.id !== stagedImageId); renderStagingArea(); } else if (target.classList.contains('crop-btn')) { openCropperModal(stagedImageId); } else if (target.classList.contains('assign-full-none')) { const problemStr = getProblemState('none').str; assignFullImage(stagedImageId, problemStr); } });
+    let toastTimeout; function showToast(message) { clearTimeout(toastTimeout); toast.textContent = message; toast.classList.add('show'); toastTimeout = setTimeout(() => { toast.classList.remove('show'); }, 3000); }
+    const handleKeyDown = e => { if (e.key === ' ' && cropper) { e.preventDefault(); cropper.setDragMode('move'); } };
+    const handleKeyUp = e => { if (e.key === ' ' && cropper) { cropper.setDragMode('crop'); } };
+    const handleWheelRotate = e => { if (e.shiftKey && cropper) { e.preventDefault(); cropper.rotate(-e.deltaY / 50); const currentRotation = cropper.getData().rotate; rotationSlider.value = currentRotation; rotationValue.textContent = `${Math.round(currentRotation)}°`; } };
+    function openCropperModal(stagedImageId) { const image = unassignedImages.find(img => img.id === stagedImageId); if (!image) return; rotationSlider.value = 0; rotationValue.textContent = '0°'; imageToCrop.src = image.dataUrl; cropModal.style.display = 'flex'; setAssignButtonsDisabled(false); updateAssignButtonLabels(); if (cropper) cropper.destroy(); window.addEventListener('keydown', handleKeyDown); window.addEventListener('keyup', handleKeyUp); cropper = new Cropper(imageToCrop, { background: false, viewMode: 2, autoCropArea: 0.5, dragMode: 'crop', zoomOnWheel: true, ready: function () { const initialZoom = 0.8; this.cropper.zoomTo(initialZoom); const cropperContainer = document.querySelector('.cropper-container'); if (cropperContainer) { cropperContainer.addEventListener('wheel', handleWheelRotate); } }, zoom: function (event) { const zoomRatio = event.detail.ratio; zoomSlider.value = zoomRatio; zoomValue.textContent = `${Math.round(zoomRatio * 100)}%`; }, crop: function(event) { setAssignButtonsDisabled(false); } }); }
+    function closeCropperModal() { window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('keyup', handleKeyUp); const cropperContainer = document.querySelector('.cropper-container'); if (cropperContainer) { cropperContainer.removeEventListener('wheel', handleWheelRotate); } cropModal.style.display = 'none'; if (cropper) cropper.destroy(); }
+    function renderTable() { problemsTableBody.innerHTML = ''; for (const num in problems) { const problem = problems[num]; const row = document.createElement('tr'); const imageHtml = problem.dataUrls.map((url, index) => `<img src="${url}" class="preview-img inline-block m-1 hover:opacity-75" data-problem-num="${num}" data-image-index="${index}">`).join(''); row.innerHTML = `<td class="p-3 font-bold problem-num-cell cursor-pointer hover:bg-gray-100" data-num="${num}">${num}</td><td class="p-3">${imageHtml}</td><td class="p-3 align-top"><button class="send-gemini-btn bg-green-500 hover:bg-green-600 text-white font-bold py-1 px-3 rounded text-sm" data-num="${num}">Send to Gemini</button><div class="spinner ml-2 align-middle border-4 border-gray-200 border-t-blue-500 rounded-full w-5 h-5 animate-spin" data-num="${num}"></div></td><td class="p-3 font-mono text-sm align-top">${problem.geminiResponse}</td><td class="p-3 align-top"><input type="text" class="final-answer-input p-1 border rounded-md w-full" data-num="${num}" value="${problem.finalAnswer}"></td>`; problemsTableBody.appendChild(row); } }
+    problemsTableBody.addEventListener('click', e => { const target = e.target; if (target.tagName === 'IMG') { const problemNum = target.dataset.problemNum; const imageIndex = parseInt(target.dataset.imageIndex, 10); managedImageInfo = { problemNum, imageIndex }; imageToManage.src = target.src; reassignProblemNumberInput.value = ''; manageImageModal.style.display = 'flex'; } else if (target.classList.contains('problem-num-cell')) { const oldProblemNum = target.dataset.num; const newProblemNum = prompt(`Rename problem "${oldProblemNum}" to:`, oldProblemNum); if (newProblemNum && newProblemNum.trim() !== '' && newProblemNum !== oldProblemNum) { if (problems[newProblemNum]) { problems[newProblemNum].files.push(...problems[oldProblemNum].files); problems[newProblemNum].dataUrls.push(...problems[oldProblemNum].dataUrls); showToast(`Merged images from #${oldProblemNum} into #${newProblemNum}`); } else { problems[newProblemNum] = problems[oldProblemNum]; showToast(`Renamed Problem #${oldProblemNum} to #${newProblemNum}`); } delete problems[oldProblemNum]; renderTable(); } } else if (target.classList.contains('send-gemini-btn')) { const problemNum = target.dataset.num; const problem = problems[problemNum]; if (!problem) return; const spinner = document.querySelector(`.spinner[data-num='${problemNum}']`); const button = target; spinner.style.display = 'inline-block'; button.disabled = true; const formData = new FormData(); problem.files.forEach(file => formData.append('files', file)); fetch(`${API_BASE_URL}/solve-question/`, { method: 'POST', body: formData }).then(res => { if (!res.ok) { return res.json().then(err => { throw new Error(err.detail || 'API request failed'); }); } return res.json(); }).then(data => { problem.geminiResponse = data.answer; problem.finalAnswer = data.answer; }).catch(error => { problem.geminiResponse = `Error: ${error.message}`; }).finally(() => { spinner.style.display = 'none'; button.disabled = false; renderTable(); }); } });
+    function closeManageModal() { managedImageInfo = null; manageImageModal.style.display = 'none'; }
+    reassignBtn.addEventListener('click', () => { if (!managedImageInfo) return; const { problemNum, imageIndex } = managedImageInfo; const newProblemNum = reassignProblemNumberInput.value.trim(); if (newProblemNum && newProblemNum !== problemNum) { const [file] = problems[problemNum].files.splice(imageIndex, 1); const [dataUrl] = problems[problemNum].dataUrls.splice(imageIndex, 1); addImageToProblem(newProblemNum, file, dataUrl); if (problems[problemNum].files.length === 0) delete problems[problemNum]; showToast(`Image moved from Problem #${problemNum} to #${newProblemNum}`); renderTable(); closeManageModal(); } else { alert("Please enter a new and different problem number."); } });
+    deleteImageBtn.addEventListener('click', () => { if (!managedImageInfo) return; if (!confirm("Are you sure you want to permanently delete this image?")) return; const { problemNum, imageIndex } = managedImageInfo; problems[problemNum].files.splice(imageIndex, 1); problems[problemNum].dataUrls.splice(imageIndex, 1); if (problems[problemNum].files.length === 0) delete problems[problemNum]; showToast(`Image deleted from Problem #${problemNum}`); renderTable(); closeManageModal(); });
+    cancelManageBtn.addEventListener('click', closeManageModal);
+    function handleFiles(files) { const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/')); if (imageFiles.length === 0) return; imageFiles.forEach(file => { const reader = new FileReader(); reader.onload = e => { unassignedImages.push({ id: Date.now() + Math.random(), dataUrl: e.target.result, file }); renderStagingArea(); }; reader.readAsDataURL(file); }); }
+    function assignFullImage(stagedImageId, problemNum) { const image = unassignedImages.find(img => img.id === stagedImageId); if (!image) return; addImageToProblem(problemNum, image.file, image.dataUrl); unassignedImages = unassignedImages.filter(img => img.id !== stagedImageId); renderStagingArea(); showToast(`Assigned #${problemNum}`); }
+    function addImageToProblem(problemNum, file, dataUrl) { if (!problems[problemNum]) { problems[problemNum] = { files: [], dataUrls: [], geminiResponse: '', finalAnswer: '' }; } problems[problemNum].files.push(file); problems[problemNum].dataUrls.push(dataUrl); }
+    updateAssignButtonLabels();
+</script>
+</body>
+</html>

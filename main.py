@@ -2,7 +2,9 @@
 import io
 import os
 import logging # <-- Added for logging
-from typing import List, Optional
+from typing import List, Optional, Any  # Make sure 'Any' is imported from 'typing'
+import io
+from PIL import Image
 
 # Office file processing
 import docx
@@ -337,6 +339,74 @@ async def check_assignment_with_gemini(
             status_code=500, detail=f"An error occurred with the Gemini API: {str(e)}"
         )
 
+# for working on test questions
+@app.post(
+    "/solve-question/",
+    summary="Solve a Question from Images",
+    # dependencies=[Depends(verify_firebase_token)], # Uncomment for auth
+)
+async def solve_question(
+    files: List[UploadFile] = File(..., description="One or more images of the test question.")
+) -> dict:
+    logger.info(f"POST /solve-question/ endpoint hit with {len(files)} file(s).")
+    if not GOOGLE_API_KEY:
+        raise HTTPException(
+            status_code=500, detail="GOOGLE_API_KEY is not configured on the server."
+        )
+
+    prompt = "Given a screenshot of a multiple choice question respond with only the question number (if provided) and the letter option of the correct choice (ABCD, etc) unless explicitly directed to do otherwise."
+
+    model_contents: List[Any] = [prompt]
+    for file in files:
+        if not file.content_type or not file.content_type.startswith("image/"):
+            logger.warning(f"Skipping non-image file: {file.filename}")
+            continue
+        
+        image_bytes = await file.read()
+        try:
+            img = Image.open(io.BytesIO(image_bytes))
+            model_contents.append(img)
+        except Exception as e:
+            logger.error(f"Could not process image file {file.filename}: {e}")
+            raise HTTPException(status_code=400, detail=f"Invalid image file: {file.filename}")
+
+    if len(model_contents) <= 1:
+        raise HTTPException(status_code=400, detail="No valid image files were provided.")
+
+    try:
+        # CORRECTED: Using the genai.Client pattern from your working example
+        client = genai.Client(api_key=GOOGLE_API_KEY)
+        
+        response = await client.aio.models.generate_content(
+            model="models/gemini-1.5-flash-latest",
+            contents=model_contents
+        )
+
+        # CORRECTED: Using the more robust response parsing from your example
+        first_candidate = response.candidates[0] if response.candidates else None
+        if (
+            first_candidate and
+            first_candidate.finish_reason and
+            first_candidate.finish_reason.name == "STOP"
+        ):
+            if response.text:
+                return {"answer": response.text.strip()}
+            else:
+                raise HTTPException(
+                    status_code=500, detail="Gemini returned an empty text response."
+                )
+        else:
+            reason = "N/A"
+            if first_candidate and first_candidate.finish_reason:
+                reason = first_candidate.finish_reason.name
+            detail_msg = f"Gemini request did not complete successfully. Reason: {reason}"
+            raise HTTPException(status_code=500, detail=detail_msg)
+
+    except Exception as e:
+        logger.error(f"Error during Gemini API call for /solve-question/: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"An error occurred with the Gemini API: {str(e)}"
+        )
 
 @app.get(
     "/",
