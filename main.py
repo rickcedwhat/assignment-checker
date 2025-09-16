@@ -1,6 +1,7 @@
 # --- Imports ---
 import io
 import os
+import json
 import logging # <-- Added for logging
 from typing import List, Optional, Any  # Make sure 'Any' is imported from 'typing'
 import io
@@ -65,10 +66,27 @@ app.add_middleware(
 )
 
 # --- Firebase Admin SDK Initialization ---
+
 try:
-    cred = credentials.ApplicationDefault()
+    # Check for the Railway environment variable first
+    firebase_creds_json_str = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON")
+
+    if firebase_creds_json_str:
+        # If the variable exists (on Railway), load credentials from it
+        logger.info("Initializing Firebase Admin SDK from environment variable.")
+        firebase_creds = json.loads(firebase_creds_json_str)
+        cred = credentials.Certificate(firebase_creds)
+    else:
+        # If the variable is not set (local environment), use Application Default Credentials.
+        # This automatically finds your firebase-service-account.json file if you've
+        # set the GOOGLE_APPLICATION_CREDENTIALS environment variable.
+        logger.info("Initializing Firebase Admin SDK using Application Default Credentials.")
+        cred = credentials.ApplicationDefault()
+
+    # Initialize the app with whichever credential method was successful
     initialize_app(cred)
     logger.info("Firebase Admin SDK initialized successfully.")
+
 except Exception as e:
     logger.error(f"Error initializing Firebase Admin SDK: {e}")
 

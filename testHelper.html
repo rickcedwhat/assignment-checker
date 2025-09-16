@@ -99,7 +99,19 @@
 <div id="toast"></div>
 
 <script>
-    const API_BASE_URL = 'http://127.0.0.1:8000';
+    // Automatically set the backend URL based on the environment
+    let API_BASE_URL;
+    if (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost') {
+    // --- LOCAL DEVELOPMENT ---
+    // Use this when you're running testHelper.html on your own computer.
+    API_BASE_URL = 'http://127.0.0.1:8000';
+    console.log('Running in local mode. API URL:', API_BASE_URL);
+    } else {
+    // --- DEPLOYED (PRODUCTION) ---
+    // Use this for the live version. Replace with your actual Railway URL.
+    API_BASE_URL = 'https://assignment-checker-production.up.railway.app';
+    console.log('Running in deployed mode. API URL:', API_BASE_URL);
+    }
     let problems = {};
     let unassignedImages = [];
     let cropper;
