@@ -399,28 +399,31 @@ async def solve_question(
             contents=model_contents
         )
 
+        # --- CORRECTED & RESTRUCTURED LOGIC ---
         first_candidate = response.candidates[0] if response.candidates else None
-        if (
-            first_candidate and
-            first_candidate.finish_reason and
-            first_candidate.finish_reason.name == "STOP"
-        ):
+
+        # 1. Safely determine the finish reason ONCE.
+        finish_reason_name = "UNKNOWN"
+        if first_candidate and first_candidate.finish_reason:
+            if hasattr(first_candidate.finish_reason, 'name'):
+                finish_reason_name = first_candidate.finish_reason.name
+            else:
+                # Handle the case where the reason is a string or other type
+                finish_reason_name = str(first_candidate.finish_reason)
+
+        # 2. Now, check the safely-extracted reason.
+        if finish_reason_name == "STOP":
             if response.text:
                 return {"answer": response.text.strip()}
             else:
+                # This can happen if the response is empty but still "STOP"
                 raise HTTPException(
                     status_code=500, detail="Gemini returned an empty text response."
                 )
         else:
-            reason = "N/A"
-            if first_candidate and first_candidate.finish_reason:
-                # CORRECTED: Safely handle the finish_reason, whether it's an object or a string
-                if hasattr(first_candidate.finish_reason, 'name'):
-                    reason = first_candidate.finish_reason.name
-                else:
-                    reason = str(first_candidate.finish_reason)
-            
-            detail_msg = f"Gemini request did not complete successfully. Reason: {reason}"
+            # If the reason was not "STOP" (e.g., "SAFETY", "MAX_TOKENS", etc.)
+            detail_msg = f"Gemini request did not complete successfully. Reason: {finish_reason_name}"
+            logger.warning(detail_msg)
             raise HTTPException(status_code=500, detail=detail_msg)
 
     except Exception as e:
@@ -428,6 +431,8 @@ async def solve_question(
         raise HTTPException(
             status_code=500, detail=f"An error occurred with the Gemini API: {str(e)}"
         )
+
+
 @app.get(
     "/",
     summary="Root Endpoint",
