@@ -392,7 +392,6 @@ async def solve_question(
         raise HTTPException(status_code=400, detail="No valid image files were provided.")
 
     try:
-        # CORRECTED: Using the genai.Client pattern from your working example
         client = genai.Client(api_key=GOOGLE_API_KEY)
         
         response = await client.aio.models.generate_content(
@@ -400,7 +399,6 @@ async def solve_question(
             contents=model_contents
         )
 
-        # CORRECTED: Using the more robust response parsing from your example
         first_candidate = response.candidates[0] if response.candidates else None
         if (
             first_candidate and
@@ -416,7 +414,12 @@ async def solve_question(
         else:
             reason = "N/A"
             if first_candidate and first_candidate.finish_reason:
-                reason = first_candidate.finish_reason.name
+                # CORRECTED: Safely handle the finish_reason, whether it's an object or a string
+                if hasattr(first_candidate.finish_reason, 'name'):
+                    reason = first_candidate.finish_reason.name
+                else:
+                    reason = str(first_candidate.finish_reason)
+            
             detail_msg = f"Gemini request did not complete successfully. Reason: {reason}"
             raise HTTPException(status_code=500, detail=detail_msg)
 
@@ -425,7 +428,6 @@ async def solve_question(
         raise HTTPException(
             status_code=500, detail=f"An error occurred with the Gemini API: {str(e)}"
         )
-
 @app.get(
     "/",
     summary="Root Endpoint",
