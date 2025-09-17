@@ -318,7 +318,7 @@ async def check_assignment_with_gemini(
         """
 
         response = await client.aio.models.generate_content(
-            model="models/gemini-1.5-flash", contents=prompt
+            model="models/gemini-2.5-pro", contents=prompt
         )
 
         first_candidate = response.candidates[0] if response.candidates else None
