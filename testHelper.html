@@ -89,14 +89,7 @@
 
 <script>
     // --- Universal API URL ---
-    let API_BASE_URL;
-    if (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost') {
-        API_BASE_URL = 'http://127.0.0.1:8000';
-        console.log("Using local API base URL");
-    } else {
-        API_BASE_URL = 'https://assignment-checker-production.up.railway.app';
-        console.log("Using production API base URL");
-    }
+    const API_BASE_URL='https://assignment-checker-production.up.railway.app';
 
     // --- STATE & DOM ELEMENTS ---
     let problems = {};

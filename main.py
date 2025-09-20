@@ -399,7 +399,7 @@ async def solve_question(
         client = genai.Client(api_key=GOOGLE_API_KEY)
         
         response = await client.aio.models.generate_content(
-            model="models/gemini-1.5-flash-latest",
+            model="models/gemini-2.5-pro",
             contents=model_contents
         )
 
