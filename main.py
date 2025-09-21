@@ -321,34 +321,25 @@ async def check_assignment_with_gemini(
             model="models/gemini-2.5-pro", contents=prompt
         )
 
+        # --- FIX APPLIED HERE ---
+        # This logic robustly handles different possible formats for the finish_reason
         first_candidate = response.candidates[0] if response.candidates else None
-        if (
-            first_candidate
-            and first_candidate.content
-            and first_candidate.finish_reason
-            and first_candidate.finish_reason.name == "STOP"
-        ):
-            content_parts = first_candidate.content.parts
-            answer_text = ""
-            if content_parts:
-                answer_text = "".join(
-                    part.text
-                    for part in content_parts
-                    if hasattr(part, "text") and part.text is not None
-                )
-            if answer_text:
-                return {"analysis": answer_text}
+        
+        finish_reason_name = "UNKNOWN"
+        if first_candidate and first_candidate.finish_reason:
+            if hasattr(first_candidate.finish_reason, 'name'):
+                finish_reason_name = first_candidate.finish_reason.name
             else:
-                raise HTTPException(
-                    status_code=500, detail="Gemini returned an empty text response."
-                )
+                finish_reason_name = str(first_candidate.finish_reason)
+
+        if finish_reason_name == "STOP":
+            if response.text:
+                return {"analysis": response.text.strip()}
+            else:
+                raise HTTPException(status_code=500, detail="Gemini returned an empty text response but finished correctly.")
         else:
-            reason = "N/A"
-            if first_candidate and first_candidate.finish_reason:
-                reason = first_candidate.finish_reason.name
-            detail_msg = (
-                f"Gemini request did not complete successfully. Reason: {reason}"
-            )
+            detail_msg = f"Gemini request did not complete successfully. Reason: {finish_reason_name}"
+            logger.warning(detail_msg)
             raise HTTPException(status_code=500, detail=detail_msg)
             
     except Exception as e:
