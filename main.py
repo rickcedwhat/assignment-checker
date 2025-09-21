@@ -374,7 +374,7 @@ async def solve_question(
 
     # prompt = "Given a screenshot of a multiple choice question respond with only the question number (if provided) and the letter option of the correct choice (ABCD, etc) unless explicitly directed to do otherwise."
     prompt = """Analyze the question in the image and respond according to its type.
-    - If the question is multiple-choice, respond ONLY with the letter of the correct answer (e.g., '2. C').
+    - If the question is multiple-choice, respond ONLY with the letter of the correct answer (e.g., 'C').
     - If the question is open-ended, provide a complete and detailed answer, showing all necessary work and reasoning.
     - If the question is a fill-in-the-blank, provide the correct word or phrase to complete the sentence."""
     
